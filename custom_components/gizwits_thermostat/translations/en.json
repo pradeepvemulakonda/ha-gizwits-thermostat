@@ -1,0 +1,47 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add a Radiant Wi-Fi thermostat",
+        "description": "Enter the thermostat's IP address on your network (reserve it in your router so it doesn't change). Everything - status and on/off - works over your local network; no cloud account is needed.",
+        "data": {
+          "host": "IP address",
+          "name": "Name"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not reach a Gizwits thermostat at that address. Check the IP, that the phone app is closed, and that the thermostat is online."
+    },
+    "abort": {
+      "already_configured": "This thermostat is already configured (its IP address was updated)."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Radiant thermostat options",
+        "description": "Status changes normally arrive instantly over the local network. This sets the safety-net polling interval.",
+        "data": {
+          "scan_interval": "Polling interval (seconds)"
+        }
+      }
+    }
+  },
+  "services": {
+    "send_raw": {
+      "name": "Send raw command (local, advanced)",
+      "description": "Advanced/diagnostic: send a raw 0x93 sub-command to the thermostat over the local network and log its reply. A wrong payload may change thermostat settings - only use bytes you have verified from a real capture.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Thermostat",
+          "description": "The thermostat to send to."
+        },
+        "hex": {
+          "name": "Sub-command bytes (hex)",
+          "description": "The bytes that follow the sequence number, e.g. '05 0a 01' for ON."
+        }
+      }
+    }
+  }
+}

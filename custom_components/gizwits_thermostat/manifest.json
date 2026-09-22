@@ -1,0 +1,12 @@
+{
+  "domain": "gizwits_thermostat",
+  "name": "Gizwits Thermostat (tested on Radiant Australia)",
+  "codeowners": [],
+  "config_flow": true,
+  "documentation": "https://github.com/YOUR_GITHUB_USERNAME/ha-gizwits-thermostat",
+  "issue_tracker": "https://github.com/YOUR_GITHUB_USERNAME/ha-gizwits-thermostat/issues",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "requirements": [],
+  "version": "0.2.0"
+}

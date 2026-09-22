@@ -1,0 +1,12 @@
+send_raw:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: gizwits_thermostat
+    hex:
+      required: true
+      example: "aa bb cc"
+      selector:
+        text:
