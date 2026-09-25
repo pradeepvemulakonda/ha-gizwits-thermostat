@@ -1,4 +1,4 @@
-# Gizwits Thermostat – Home Assistant integration (tested on Radiant Australia)
+# Gizwits Thermostat – Home Assistant integration
 
 Fully **local**: no cloud account, no Gizwits app ID or token needed. Confirmed against a real
 capture of the phone app switching a Radiant Australia floor-heating thermostat on and off.
