@@ -1,7 +1,8 @@
 """Stand-alone tests (no Home Assistant needed):  python -m unittest tests.test_lan_and_cloud -v
 
-Exercises the CONFIRMED protocol from a real capture of the phone app switching the .23
-thermostat on and off:
+Exercises the CONFIRMED protocol from a real capture of the phone app switching the
+thermostat on and off. Frame timing/values are real; the device's MAC, DID and
+product key have been replaced with fake placeholders below.
     -> 0x93  seq + 05 00 00        "give me your status"
     <- 0x94  seq + <14-byte status, prefixed 0x06>
     -> 0x93  seq + 05 0a <00|01>   "turn off|on"
@@ -18,15 +19,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "custom_compone
 
 import gizwits_lan as lan  # noqa: E402
 
-# Real frames from the capture (192.168.4.23), OFF state, 22:09 Monday.
+# Real status frames from the capture, OFF state, 22:09 Monday.
 STATUS_OFF = bytes.fromhex("06 00 02 02 00 e6 01 1d 00 01 22 09 00 d7")
 STATUS_ON = bytes.fromhex("06 00 0b 02 00 e6 01 1d 00 01 22 09 00 d7")
-# Real UDP status broadcast (port 12414) from the same unit.
+# Real UDP status broadcast (port 12414) from the same unit, with the
+# device's real MAC replaced by the fake aa:bb:cc:dd:ee:ff below.
 BROADCAST_ON = bytes.fromhex(
-    "00 00 00 03 18 00 00 91 06 c8 c9 a3 b4 f6 f2 06 00 0b 02 00 e6 01 1d 00 01 20 59 00 d7"
+    "00 00 00 03 18 00 00 91 06 aa bb cc dd ee ff 06 00 0b 02 00 e6 01 1d 00 01 20 59 00 d7"
 )
 BROADCAST_OFF = bytes.fromhex(
-    "00 00 00 03 18 00 00 91 06 c8 c9 a3 b4 f6 f2 06 00 02 02 00 e6 01 1d 00 01 20 58 00 d7"
+    "00 00 00 03 18 00 00 91 06 aa bb cc dd ee ff 06 00 02 02 00 e6 01 1d 00 01 20 58 00 d7"
 )
 
 PASSCODE = b"\x00\x0aABCDEFGHIJ"
@@ -98,21 +100,24 @@ class DecodeTests(unittest.TestCase):
             lan.decode_status(b"\x06\x00")
 
     def test_parse_discovery(self):
+        # Field layout confirmed from a real discovery response; the
+        # DID, MAC and product key below are fake placeholders, not
+        # the real device's values.
         def field(b):
             return struct.pack(">H", len(b)) + b
 
         body = (
-            field(b"OqEQvCjJnHM5DdAEg0RTY7")
-            + field(bytes.fromhex("c8c9a3b4f6f2"))
+            field(b"FakeDid00000TestDevice")
+            + field(bytes.fromhex("aabbccddeeff"))
             + field(b"04020037")
-            + field(b"978d5c98e301498f829ab1c9b3e35965")
+            + field(b"00112233445566778899aabbccddeeff")
             + b"\x00" * 8
             + b"api.gizwits.com:80\x004.1.2\x00"
         )
         pkt = lan.MAGIC + bytes([len(body) + 3]) + b"\x00\x00\x04" + body
-        dev = lan.parse_discovery(pkt, "192.168.4.23")
-        self.assertEqual(dev.did, "OqEQvCjJnHM5DdAEg0RTY7")
-        self.assertEqual(dev.mac, "c8:c9:a3:b4:f6:f2")
+        dev = lan.parse_discovery(pkt, "192.0.2.1")
+        self.assertEqual(dev.did, "FakeDid00000TestDevice")
+        self.assertEqual(dev.mac, "aa:bb:cc:dd:ee:ff")
         self.assertEqual(dev.gagent_version, "4.1.2")
 
 
@@ -179,7 +184,7 @@ class ControlTests(unittest.IsolatedAsyncioTestCase):
 class BroadcastTests(unittest.IsolatedAsyncioTestCase):
     def test_parse_real_broadcast(self):
         mac, s = lan.parse_status_broadcast(BROADCAST_ON)
-        self.assertEqual(mac, "c8:c9:a3:b4:f6:f2")
+        self.assertEqual(mac, "aa:bb:cc:dd:ee:ff")
         self.assertTrue(s.power)
         mac, s = lan.parse_status_broadcast(BROADCAST_OFF)
         self.assertFalse(s.power)
@@ -193,8 +198,8 @@ class BroadcastTests(unittest.IsolatedAsyncioTestCase):
         listener = lan.StatusBroadcastListener("127.0.0.1", 0)
         await listener.start()
         got, other = [], []
-        listener.register("C8:C9:A3:B4:F6:F2", got.append)
-        listener.register("34:94:54:94:7d:8b", other.append)
+        listener.register("AA:BB:CC:DD:EE:FF", got.append)
+        listener.register("11:22:33:44:55:66", other.append)
         loop = asyncio.get_running_loop()
         tr, _ = await loop.create_datagram_endpoint(asyncio.DatagramProtocol, remote_addr=("127.0.0.1", listener.port))
         tr.sendto(BROADCAST_ON)

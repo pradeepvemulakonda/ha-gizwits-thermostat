@@ -72,27 +72,37 @@ CMD_CTRL_ACK = 0x0094
 #   05 0a <00|01>
 #       -> set power off/on
 #
-#   05 0e 01 <value>
+#   05 0e <hi> <lo>
 #       -> set target temperature
 #
-# Setpoint encoding confirmed from the captures:
-#
-#   wire_value = round(temperature * 10) - 256
+# Setpoint encoding confirmed from two captures spanning 13.5-29.0 C:
+# the two bytes after "05 0e" are simply round(temperature * 10)
+# packed big-endian, i.e. the exact same 16-bit encoding already used
+# for the setpoint field in the 0x91 status frame. There is no
+# per-byte offset - an earlier version of this driver assumed the
+# high byte was always 0x01 and subtracted 256 to get a single low
+# byte, which only produced the right value for the 25.6-38.3 C band
+# that happened to be captured first; outside that band it either
+# raised (temp < 25.6 C) or would have sent the wrong high byte
+# (temp >= 38.4 C).
 #
 # Captured values:
 #
-#   27.5 C -> 0x13
-#   28.0 C -> 0x18
-#   28.5 C -> 0x1D
-#   29.0 C -> 0x22
+#   13.5 C -> 00 87
+#   20.0 C -> 00 c8
+#   25.0 C -> 00 fa
+#   27.5 C -> 01 13
+#   28.0 C -> 01 18
+#   28.5 C -> 01 1D
+#   29.0 C -> 01 22
 #
 # Setpoint ACK:
 #
-#   06 0e 01 <same value>
+#   06 0e <same two bytes>
 #
 SUBCMD_READ_STATUS = bytes.fromhex("05 00 00")
 SUBCMD_POWER = bytes.fromhex("05 0a")
-SUBCMD_SETPOINT = bytes.fromhex("05 0e 01")
+SUBCMD_SETPOINT = bytes.fromhex("05 0e")
 
 POWER_BIT = 0x01
 VALVE1_BIT = 0x08
@@ -170,22 +180,25 @@ def _bcd(value: int) -> int | None:
     )
 
 
-def encode_setpoint(temperature: float) -> int:
+def encode_setpoint(temperature: float) -> bytes:
     """Convert a Celsius setpoint to the thermostat wire value.
 
     The thermostat accepts 0.5 C increments.
     This version automatically normalizes/rounds values to the nearest 0.5 C increment.
 
-    Wire encoding confirmed from packet captures:
-
-        wire_value = round(temperature * 10) - 256
+    Wire encoding confirmed from two packet captures spanning 13.5 C
+    to 29.0 C: the wire value is simply round(temperature * 10) packed
+    as a big-endian 16-bit integer - the same encoding used for the
+    setpoint field in the status frame. There is no per-byte offset.
 
     Examples:
 
-        27.5 C -> 0x13
-        28.0 C -> 0x18
-        28.5 C -> 0x1D
-        29.0 C -> 0x22
+        13.5 C -> 00 87
+        20.0 C -> 00 c8
+        27.5 C -> 01 13
+        28.0 C -> 01 18
+        28.5 C -> 01 1D
+        29.0 C -> 01 22
     """
 
     temperature = float(temperature)
@@ -199,9 +212,8 @@ def encode_setpoint(temperature: float) -> int:
             "the representable thermostat range"
         )
 
-    # Map to wire value: e.g., 28.5 * 10 = 285 -> 285 - 256 = 29 (0x1D)
-    wire_value = round(temperature * 10) - 256
-    return wire_value
+    # Map to wire value: e.g., 28.5 * 10 = 285 -> 01 1D
+    return struct.pack(">H", round(temperature * 10))
 
 
 def decode_status(payload: bytes) -> RadiantStatus:
@@ -676,17 +688,17 @@ class GizwitsLanClient:
 
         The command is:
 
-            05 0e 01 <wire_value>
+            05 0e <hi> <lo>
 
-        where:
-
-            wire_value = round(temperature * 10) - 256
+        where <hi><lo> is round(temperature * 10) packed big-endian
+        (the same 16-bit encoding as the status frame's setpoint
+        field - no per-byte offset).
 
         The thermostat operates in 0.5 C increments.
 
         The acknowledgement is:
 
-            06 0e 01 <wire_value>
+            06 0e <hi> <lo>
         """
 
         wire_value = encode_setpoint(
@@ -696,7 +708,7 @@ class GizwitsLanClient:
         try:
             ack = await self._control(
                 SUBCMD_SETPOINT
-                + bytes([wire_value]),
+                + wire_value,
                 timeout,
             )
 
@@ -709,8 +721,7 @@ class GizwitsLanClient:
             len(ack) < 4
             or ack[0] != 0x06
             or ack[1] != 0x0E
-            or ack[2] != 0x01
-            or ack[3] != wire_value
+            or ack[2:4] != wire_value
         ):
             raise GizwitsProtocolError(
                 f"unexpected setpoint ack: "
