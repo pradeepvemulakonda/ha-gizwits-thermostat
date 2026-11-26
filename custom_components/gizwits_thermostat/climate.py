@@ -55,7 +55,7 @@ class RadiantClimate(
 
     _attr_name = None
 
-    _attr_temperature_unit = (
+    _attr_native_temperature_unit = (
         UnitOfTemperature.CELSIUS
     )
 
@@ -113,7 +113,7 @@ class RadiantClimate(
         )
 
     @property
-    def current_temperature(
+    def native_current_temperature(
         self,
     ) -> float | None:
         return (
@@ -123,7 +123,7 @@ class RadiantClimate(
         )
 
     @property
-    def target_temperature(
+    def native_target_temperature(
         self,
     ) -> float | None:
         return (
